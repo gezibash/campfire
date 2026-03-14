@@ -12,6 +12,8 @@ module Message::Broadcasts
 
   private
     def broadcast_api_event(event)
+      member_ids = room.memberships.pluck(:user_id)
+
       payload = {
         event: event,
         message: {
@@ -26,12 +28,13 @@ module Message::Broadcasts
           id: room.id,
           name: room.name.presence || room.users.ordered.pluck(:name).join(", "),
           type: room.type,
-          direct: room.direct?
+          direct: room.direct?,
+          member_ids: member_ids
         }
       }
 
       # Broadcast to each room member's personal API stream.
-      room.memberships.pluck(:user_id).each do |uid|
+      member_ids.each do |uid|
         ActionCable.server.broadcast("api:user:#{uid}", payload)
       end
 
