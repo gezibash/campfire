@@ -19,6 +19,8 @@ module Api
           bot_token: User.generate_bot_token
         )
 
+        user.avatar.attach(params[:avatar]) if params[:avatar].present?
+
         render json: user_json(user).merge(password: password, api_token: user.bot_key), status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message }, status: :unprocessable_entity

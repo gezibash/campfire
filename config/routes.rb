@@ -101,8 +101,11 @@ Rails.application.routes.draw do
     namespace :v1 do
       resource  :first_run, only: :create
       resource  :session,   only: :create
-      resources :users,     only: %i[ index create ]
+      resources :users,     only: %i[ index create ] do
+        resource :avatar, only: :show, controller: "avatars"
+      end
       resources :rooms,     only: :index do
+        post :direct, on: :collection
         resources :messages, only: %i[ index create ]
       end
       resources :messages,  only: [] do

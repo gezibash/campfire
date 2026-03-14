@@ -11,6 +11,7 @@ module Api
 
         user = FirstRun.create!(user_params)
         user.update!(bot_token: User.generate_bot_token) unless user.bot_token.present?
+        user.avatar.attach(params[:avatar]) if params[:avatar].present?
 
         render json: {
           user: user_json(user),

@@ -34,5 +34,8 @@ module Message::Broadcasts
       room.memberships.pluck(:user_id).each do |uid|
         ActionCable.server.broadcast("api:user:#{uid}", payload)
       end
+
+      # Broadcast to the global API stream so admin watchers see all messages.
+      ActionCable.server.broadcast("api:global", payload)
     end
 end

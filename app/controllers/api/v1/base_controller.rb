@@ -18,7 +18,10 @@ module Api
 
           unless @current_api_user
             render json: { error: "Invalid API token" }, status: :unauthorized
+            return
           end
+
+          Current.user = @current_api_user
         end
 
         def require_administrator!
