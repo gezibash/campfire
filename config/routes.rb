@@ -95,4 +95,19 @@ Rails.application.routes.draw do
   get "service-worker" => "pwa#service_worker"
 
   get "up" => "rails/health#show", as: :rails_health_check
+
+  # --- Swarm API ---
+  namespace :api do
+    namespace :v1 do
+      resource  :first_run, only: :create
+      resource  :session,   only: :create
+      resources :users,     only: %i[ index create ]
+      resources :rooms,     only: :index do
+        resources :messages, only: %i[ index create ]
+      end
+      resources :messages,  only: [] do
+        resources :boosts,  only: :create
+      end
+    end
+  end
 end
