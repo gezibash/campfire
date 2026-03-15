@@ -9,8 +9,21 @@ module Api
           return
         end
 
-        limit = params.fetch(:limit, 100).to_i.clamp(1, 200)
-        messages = @current_api_user.reachable_messages.search(query).last(limit)
+        limit = params.fetch(:limit, 50).to_i.clamp(1, 200)
+        messages = @current_api_user.reachable_messages.search(query)
+
+        if params[:room_id].present?
+          messages = messages.where(room_id: params[:room_id])
+        end
+
+        if params[:after].present?
+          messages = messages.where("messages.id > ?", params[:after])
+        end
+        if params[:before].present?
+          messages = messages.where("messages.id < ?", params[:before])
+        end
+
+        messages = messages.limit(limit)
 
         render json: messages.map { |m| search_result_json(m) }
       end

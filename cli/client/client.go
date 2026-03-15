@@ -290,10 +290,12 @@ func (c *Client) DeleteBoost(messageID, boostID string) error {
 }
 
 // Search
-func (c *Client) Search(query string, limit string) ([]byte, error) {
+func (c *Client) Search(query string, params map[string]string) ([]byte, error) {
 	path := "/api/v1/search?q=" + query
-	if limit != "" {
-		path += "&limit=" + limit
+	for k, v := range params {
+		if v != "" {
+			path += "&" + k + "=" + v
+		}
 	}
 	body, status, err := c.DoRequest("GET", path, nil)
 	if err != nil {

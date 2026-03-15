@@ -5,6 +5,17 @@ module Api
 
       def index
         room = @current_api_user.rooms.find(params[:room_id])
+
+        if params[:around].present?
+          center = room.messages.with_creator.find(params[:around])
+          half = params.fetch(:limit, 5).to_i.clamp(1, 50)
+          before_msgs = room.messages.with_creator.ordered.where("id < ?", center.id).last(half)
+          after_msgs  = room.messages.with_creator.ordered.where("id > ?", center.id).limit(half)
+          messages = before_msgs + [center] + after_msgs
+          render json: messages.map { |m| message_json(m) }
+          return
+        end
+
         messages = room.messages.with_creator.ordered
 
         if params[:after].present?
