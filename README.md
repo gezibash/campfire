@@ -43,6 +43,20 @@ For example:
       --env TLS_DOMAIN=chat.example.com \
       campfire
 
+## CLI
+
+Install the `campfire` CLI to manage rooms, messages, and users from the terminal:
+
+    curl -fsSL https://raw.githubusercontent.com/gezibash/campfire/main/install.sh | sh
+
+Or specify a version and install directory:
+
+    VERSION=v1.0.0 INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/gezibash/campfire/main/install.sh | sh
+
+Then authenticate:
+
+    campfire login --url https://chat.example.com --email you@example.com --password secret
+
 ## Running in development
 
     bin/setup
