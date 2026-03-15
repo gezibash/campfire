@@ -27,8 +27,24 @@ func runPresence(cmd *cobra.Command, args []string) {
 		exitWithError("fetching presence", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	count := countItems(body)
+	summary := fmt.Sprintf("%d users", count)
+
+	switch {
+	case jsonOutput:
+		outputList(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "direct_message", Cmd: fmt.Sprintf("campfire rooms direct --user-id %s", id), Description: "Send a direct message"},
+			}
+		}, nil)
+		return
+	case markdownOutput:
+		markdownList(body, summary, Columns{
+			{"ID", "id"},
+			{"NAME", "name"},
+			{"LAST SEEN", "last_seen_at"},
+		})
 		return
 	}
 

@@ -50,8 +50,16 @@ func runBoostsCreate(cmd *cobra.Command, args []string) {
 		exitWithError("creating boost", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	boostContent := itemStr(item, "content")
+	summary := fmt.Sprintf("Boost added: %s", boostContent)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, nil)
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 

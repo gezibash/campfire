@@ -80,8 +80,27 @@ func runRoomsList(cmd *cobra.Command, args []string) {
 		exitWithError("listing rooms", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	count := countItems(body)
+	summary := fmt.Sprintf("%d rooms", count)
+
+	switch {
+	case jsonOutput:
+		outputList(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "read", Cmd: fmt.Sprintf("campfire messages list --room-id %s", id), Description: "Read recent messages"},
+				{Action: "search", Cmd: fmt.Sprintf("campfire search --query \"{query}\" --room-id %s", id), Description: "Search messages in this room"},
+				{Action: "send", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_message}\"", id), Description: "Send a message"},
+			}
+		}, nil)
+		return
+	case markdownOutput:
+		markdownList(body, summary, Columns{
+			{"ID", "id"},
+			{"NAME", "name"},
+			{"TYPE", "type"},
+			{"DIRECT", "direct"},
+		})
 		return
 	}
 
@@ -118,8 +137,22 @@ func runRoomsCreate(cmd *cobra.Command, args []string) {
 		exitWithError("creating room", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	roomName := itemStr(item, "name")
+	summary := fmt.Sprintf("Room created: %s", roomName)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "read", Cmd: fmt.Sprintf("campfire messages list --room-id %s", id), Description: "Read messages"},
+				{Action: "send", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_message}\"", id), Description: "Send the first message"},
+			}
+		})
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 
@@ -154,8 +187,22 @@ func runRoomsUpdate(cmd *cobra.Command, args []string) {
 		exitWithError("updating room", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	roomName := itemStr(item, "name")
+	summary := fmt.Sprintf("Room updated: %s", roomName)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			rid := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "read", Cmd: fmt.Sprintf("campfire messages list --room-id %s", rid), Description: "Read messages"},
+				{Action: "send", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_message}\"", rid), Description: "Send a message"},
+			}
+		})
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 
@@ -198,8 +245,22 @@ func runRoomsDirect(cmd *cobra.Command, args []string) {
 		exitWithError("finding/creating DM", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	roomName := itemStr(item, "name")
+	summary := fmt.Sprintf("Direct room: %s", roomName)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "read", Cmd: fmt.Sprintf("campfire messages list --room-id %s", id), Description: "Read messages"},
+				{Action: "send", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_message}\"", id), Description: "Send a message"},
+			}
+		})
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 

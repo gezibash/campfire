@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	jsonOutput  bool
-	versionInfo string
+	jsonOutput     bool
+	markdownOutput bool
+	versionInfo    string
 	rootCmd     = &cobra.Command{
 		Use:   "campfire",
 		Short: "CLI for Campfire chat",
@@ -34,6 +35,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+	rootCmd.PersistentFlags().BoolVar(&markdownOutput, "markdown", false, "Output in GitHub-Flavored Markdown")
 }
 
 func configDir() string {

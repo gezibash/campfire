@@ -18,22 +18,68 @@ var searchCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(searchCmd)
 	searchCmd.Flags().String("query", "", "Search query")
-	searchCmd.Flags().String("limit", "", "Max results (default 100, max 200)")
+	searchCmd.Flags().String("room-id", "", "Limit search to a specific room")
+	searchCmd.Flags().String("after", "", "Only results after this message ID")
+	searchCmd.Flags().String("before", "", "Only results before this message ID")
+	searchCmd.Flags().String("limit", "", "Max results per page (default 50, max 200)")
 	_ = searchCmd.MarkFlagRequired("query")
 }
 
 func runSearch(cmd *cobra.Command, args []string) {
 	query, _ := cmd.Flags().GetString("query")
+	roomID, _ := cmd.Flags().GetString("room-id")
+	after, _ := cmd.Flags().GetString("after")
+	before, _ := cmd.Flags().GetString("before")
 	limit, _ := cmd.Flags().GetString("limit")
 
 	c := newClient()
-	body, err := c.Search(query, limit)
+	body, err := c.Search(query, map[string]string{
+		"room_id": roomID,
+		"after":   after,
+		"before":  before,
+		"limit":   limit,
+	})
 	if err != nil {
 		exitWithError("searching", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	count := countItems(body)
+	summary := fmt.Sprintf("%d search results for %q", count, query)
+
+	switch {
+	case jsonOutput:
+		outputList(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			rid := itemStr(item, "room_id")
+			breadcrumbs := []Breadcrumb{
+				{Action: "view_context", Cmd: fmt.Sprintf("campfire messages near %s --room-id %s", id, rid), Description: "Show surrounding messages"},
+				{Action: "reply", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_reply}\"", rid), Description: "Reply in this room"},
+				{Action: "boost", Cmd: fmt.Sprintf("campfire boosts create --message-id %s --content \"{emoji}\"", id), Description: "React with emoji"},
+			}
+			if roomID == "" {
+				breadcrumbs = append(breadcrumbs, Breadcrumb{Action: "search_room", Cmd: fmt.Sprintf("campfire search --query %q --room-id %s", query, rid), Description: "Narrow search to this room"})
+			}
+			return breadcrumbs
+		}, func(items []map[string]interface{}) []Breadcrumb {
+			if len(items) == 0 {
+				return nil
+			}
+			lastID := itemStr(items[len(items)-1], "id")
+			cmd := fmt.Sprintf("campfire search --query %q --after %s", query, lastID)
+			if roomID != "" {
+				cmd += fmt.Sprintf(" --room-id %s", roomID)
+			}
+			return []Breadcrumb{{Action: "next_page", Cmd: cmd, Description: "Load more results"}}
+		})
+		return
+	case markdownOutput:
+		markdownList(body, summary, Columns{
+			{"ID", "id"},
+			{"ROOM", "room_name"},
+			{"FROM", "creator_name"},
+			{"BODY", "body"},
+			{"TIME", "created_at"},
+		})
 		return
 	}
 
@@ -63,4 +109,8 @@ func runSearch(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", r.ID, r.RoomName, r.CreatorName, bodyPreview, r.CreatedAt)
 	}
 	w.Flush()
+
+	if len(results) > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d results. For more: --after %d\n", len(results), results[len(results)-1].ID)
+	}
 }

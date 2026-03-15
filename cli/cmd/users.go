@@ -45,8 +45,25 @@ func runUsersList(cmd *cobra.Command, args []string) {
 		exitWithError("listing users", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	count := countItems(body)
+	summary := fmt.Sprintf("%d users", count)
+
+	switch {
+	case jsonOutput:
+		outputList(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "direct_message", Cmd: fmt.Sprintf("campfire rooms direct --user-id %s", id), Description: "Start a direct message"},
+			}
+		}, nil)
+		return
+	case markdownOutput:
+		markdownList(body, summary, Columns{
+			{"ID", "id"},
+			{"NAME", "name"},
+			{"EMAIL", "email_address"},
+			{"ROLE", "role"},
+		})
 		return
 	}
 
@@ -90,8 +107,16 @@ func runUsersCreate(cmd *cobra.Command, args []string) {
 		exitWithError("creating user", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	userName := itemStr(item, "name")
+	summary := fmt.Sprintf("User created: %s", userName)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, nil)
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 

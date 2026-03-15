@@ -31,8 +31,21 @@ func runInvolvement(cmd *cobra.Command, args []string) {
 		exitWithError("updating involvement", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	involvement := itemStr(item, "involvement")
+	summary := fmt.Sprintf("Notification level set to %s", involvement)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			rid := itemStr(item, "room_id")
+			return []Breadcrumb{
+				{Action: "read", Cmd: fmt.Sprintf("campfire messages list --room-id %s", rid), Description: "Read messages in this room"},
+			}
+		})
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 

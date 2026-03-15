@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -27,6 +28,13 @@ var messagesCreateCmd = &cobra.Command{
 	Run:   runMessagesCreate,
 }
 
+var messagesNearCmd = &cobra.Command{
+	Use:   "near <message-id>",
+	Short: "Show messages around a specific message",
+	Args:  cobra.ExactArgs(1),
+	Run:   runMessagesNear,
+}
+
 var messagesDeleteCmd = &cobra.Command{
 	Use:   "delete <id>",
 	Short: "Delete a message",
@@ -36,7 +44,7 @@ var messagesDeleteCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(messagesCmd)
-	messagesCmd.AddCommand(messagesListCmd, messagesCreateCmd, messagesDeleteCmd)
+	messagesCmd.AddCommand(messagesListCmd, messagesCreateCmd, messagesNearCmd, messagesDeleteCmd)
 
 	messagesListCmd.Flags().String("room-id", "", "Room ID")
 	messagesListCmd.Flags().String("after", "", "Only messages after this ID")
@@ -48,6 +56,10 @@ func init() {
 	messagesCreateCmd.Flags().String("body", "", "Message body")
 	messagesCreateCmd.Flags().String("body-file", "", "Read message body from file")
 	_ = messagesCreateCmd.MarkFlagRequired("room-id")
+
+	messagesNearCmd.Flags().String("room-id", "", "Room ID")
+	messagesNearCmd.Flags().Int("limit", 5, "Number of messages on each side")
+	_ = messagesNearCmd.MarkFlagRequired("room-id")
 
 	messagesDeleteCmd.Flags().String("room-id", "", "Room ID")
 	messagesDeleteCmd.Flags().Bool("force", false, "Skip confirmation")
@@ -70,8 +82,33 @@ func runMessagesList(cmd *cobra.Command, args []string) {
 		exitWithError("listing messages", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	count := countItems(body)
+	summary := fmt.Sprintf("%d messages", count)
+
+	switch {
+	case jsonOutput:
+		outputList(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "reply", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_reply}\"", roomID), Description: "Reply in this room"},
+				{Action: "boost", Cmd: fmt.Sprintf("campfire boosts create --message-id %s --content \"{emoji}\"", id), Description: "React with emoji"},
+				{Action: "view_context", Cmd: fmt.Sprintf("campfire messages near %s --room-id %s", id, roomID), Description: "Show surrounding messages"},
+			}
+		}, func(items []map[string]interface{}) []Breadcrumb {
+			if len(items) == 0 {
+				return nil
+			}
+			lastID := itemStr(items[len(items)-1], "id")
+			return []Breadcrumb{{Action: "next_page", Cmd: fmt.Sprintf("campfire messages list --room-id %s --after %s", roomID, lastID), Description: "Load more messages"}}
+		})
+		return
+	case markdownOutput:
+		markdownList(body, summary, Columns{
+			{"ID", "id"},
+			{"FROM", "creator_name"},
+			{"BODY", "body"},
+			{"TIME", "created_at"},
+		})
 		return
 	}
 
@@ -120,8 +157,21 @@ func runMessagesCreate(cmd *cobra.Command, args []string) {
 		exitWithError("creating message", err)
 	}
 
-	if jsonOutput {
-		fmt.Println(string(body))
+	item, _ := parseSingleItem(body)
+	id := itemStr(item, "id")
+	summary := fmt.Sprintf("Message sent (ID: %s)", id)
+
+	switch {
+	case jsonOutput:
+		outputSingle(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			mid := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "view_context", Cmd: fmt.Sprintf("campfire messages near %s --room-id %s", mid, roomID), Description: "Show this message in context"},
+			}
+		})
+		return
+	case markdownOutput:
+		markdownMutation(summary)
 		return
 	}
 
@@ -133,6 +183,74 @@ func runMessagesCreate(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf("Message sent (ID: %d)\n", msg.ID)
+}
+
+func runMessagesNear(cmd *cobra.Command, args []string) {
+	messageID := args[0]
+	roomID, _ := cmd.Flags().GetString("room-id")
+	limit, _ := cmd.Flags().GetInt("limit")
+	limitStr := strconv.Itoa(limit)
+
+	c := newClient()
+	body, err := c.ListMessages(roomID, map[string]string{
+		"around": messageID,
+		"limit":  limitStr,
+	})
+	if err != nil {
+		exitWithError("fetching context", err)
+	}
+
+	count := countItems(body)
+	summary := fmt.Sprintf("%d messages around #%s", count, messageID)
+
+	switch {
+	case jsonOutput:
+		outputList(body, summary, func(item map[string]interface{}) []Breadcrumb {
+			id := itemStr(item, "id")
+			return []Breadcrumb{
+				{Action: "reply", Cmd: fmt.Sprintf("campfire messages create --room-id %s --body \"{your_reply}\"", roomID), Description: "Reply in this room"},
+				{Action: "boost", Cmd: fmt.Sprintf("campfire boosts create --message-id %s --content \"{emoji}\"", id), Description: "React with emoji"},
+			}
+		}, func(items []map[string]interface{}) []Breadcrumb {
+			return []Breadcrumb{
+				{Action: "expand", Cmd: fmt.Sprintf("campfire messages near %s --room-id %s --limit %d", messageID, roomID, limit*2), Description: "Show more surrounding messages"},
+			}
+		})
+		return
+	case markdownOutput:
+		markdownList(body, summary, Columns{
+			{"ID", "id"},
+			{"FROM", "creator_name"},
+			{"BODY", "body"},
+			{"TIME", "created_at"},
+		})
+		return
+	}
+
+	var messages []struct {
+		ID          int    `json:"id"`
+		CreatorName string `json:"creator_name"`
+		Body        string `json:"body"`
+		CreatedAt   string `json:"created_at"`
+	}
+	if err := json.Unmarshal(body, &messages); err != nil {
+		exitWithError("parsing response", err)
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  \tID\tFROM\tBODY\tTIME")
+	for _, m := range messages {
+		bodyPreview := m.Body
+		if len(bodyPreview) > 60 {
+			bodyPreview = bodyPreview[:57] + "..."
+		}
+		marker := " "
+		if strconv.Itoa(m.ID) == messageID {
+			marker = ">"
+		}
+		fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\n", marker, m.ID, m.CreatorName, bodyPreview, m.CreatedAt)
+	}
+	w.Flush()
 }
 
 func runMessagesDelete(cmd *cobra.Command, args []string) {
