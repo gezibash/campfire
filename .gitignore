@@ -42,3 +42,8 @@ app/assets/builds/*
 
 # Ignore our exported zipfiles
 /*.zip
+
+# Claude Code
+/.claude
+/AGENTS.md
+/CLAUDE.md

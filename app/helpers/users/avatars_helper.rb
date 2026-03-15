@@ -15,4 +15,43 @@ module Users::AvatarsHelper
       image_tag fresh_user_avatar_path(user), aria: { hidden: "true" }, size: 48, **options
     end
   end
+
+  def presence_dot(user)
+    return "".html_safe unless user.respond_to?(:last_seen_at) && user.last_seen_at.present?
+
+    age = Time.current - user.last_seen_at
+    if age < 5.minutes
+      tag.span class: "avatar__presence avatar__presence--online", title: "Online"
+    elsif age < 30.minutes
+      tag.span class: "avatar__presence avatar__presence--away", title: "Away"
+    else
+      "".html_safe
+    end
+  end
+
+  def presence_color(user)
+    return nil unless user.respond_to?(:last_seen_at) && user.last_seen_at.present?
+
+    age = Time.current - user.last_seen_at
+    if age < 5.minutes
+      "#22c55e"
+    elsif age < 30.minutes
+      "#eab308"
+    end
+  end
+
+  def last_seen_text(user)
+    return nil unless user.respond_to?(:last_seen_at) && user.last_seen_at.present?
+
+    age = Time.current - user.last_seen_at
+    if age < 1.minute
+      "Online now"
+    elsif age < 5.minutes
+      "Active #{time_ago_in_words(user.last_seen_at)} ago"
+    elsif age < 30.minutes
+      "Away \u00b7 #{time_ago_in_words(user.last_seen_at)} ago"
+    else
+      "Last seen #{time_ago_in_words(user.last_seen_at)} ago"
+    end
+  end
 end

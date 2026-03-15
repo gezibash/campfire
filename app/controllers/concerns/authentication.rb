@@ -5,6 +5,7 @@ module Authentication
   included do
     before_action :require_authentication
     before_action :deny_bots
+    after_action :touch_presence
     helper_method :signed_in?
 
     protect_from_forgery with: :exception, unless: -> { authenticated_by.bot_key? }
@@ -93,6 +94,13 @@ module Authentication
 
     def deny_bots
       head :forbidden if authenticated_by.bot_key?
+    end
+
+    def touch_presence
+      return unless Current.user.present?
+      return if Current.user.last_seen_at.present? && Current.user.last_seen_at > 1.minute.ago
+
+      Current.user.update_column(:last_seen_at, Time.current)
     end
 
     def set_authenticated_by(method)

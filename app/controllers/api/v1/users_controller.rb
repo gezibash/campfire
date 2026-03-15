@@ -6,6 +6,26 @@ module Api
         render json: users.map { |u| user_json(u) }
       end
 
+      # PATCH /api/v1/users/:id/presence — update last_seen_at for a user.
+      def presence
+        user = User.active.find_by(id: params[:id])
+        unless user
+          render json: { error: "User not found" }, status: :not_found
+          return
+        end
+
+        user.update_column(:last_seen_at, Time.current)
+        render json: { ok: true, user_id: user.id, last_seen_at: user.last_seen_at.iso8601 }
+      end
+
+      # GET /api/v1/users/presence — bulk presence for all active users.
+      def presence_index
+        users = User.active.select(:id, :name, :last_seen_at)
+        render json: users.map { |u|
+          { id: u.id, name: u.name, last_seen_at: u.last_seen_at&.iso8601 }
+        }
+      end
+
       def create
         require_administrator!
         return if performed?

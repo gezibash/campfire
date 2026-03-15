@@ -37,6 +37,14 @@
             <div><%= mail_to @user.email_address %></div>
           <% end %>
           <div><%= @user.bio %></div>
+          <% if @user.last_seen_at.present? %>
+            <div class="txt-small flex align-center gap" style="color: var(--color-text-secondary); justify-content: center; --column-gap: 0.4em;">
+              <% if (color = presence_color(@user)) %>
+                <span style="display: inline-block; width: 0.55em; height: 0.55em; border-radius: 50%; background-color: <%= color %>; flex-shrink: 0;"></span>
+              <% end %>
+              <%= last_seen_text(@user) %>
+            </div>
+          <% end %>
         </div>
 
         <% if @user.active? %>

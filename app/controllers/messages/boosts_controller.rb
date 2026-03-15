@@ -1,4 +1,6 @@
 class Messages::BoostsController < ApplicationController
+  include ActionView::RecordIdentifier
+
   before_action :set_message
 
   def index
@@ -19,6 +21,7 @@ class Messages::BoostsController < ApplicationController
     @boost.destroy!
 
     broadcast_remove
+    redirect_to message_boosts_url(@message)
   end
 
   private
@@ -30,12 +33,17 @@ class Messages::BoostsController < ApplicationController
       params.require(:boost).permit(:content)
     end
 
-    def broadcast_create
-      @boost.broadcast_append_to @boost.message.room, :messages,
-        target: "boosts_message_#{@boost.message.client_message_id}", partial: "messages/boosts/boost", attributes: { maintain_scroll: true }
+    def broadcast_boosts
+      @message.reload
+      Turbo::StreamsChannel.broadcast_replace_to(
+        [ @message.room, :messages ],
+        target: dom_id(@message, :boosting),
+        partial: "messages/boosts/boosts",
+        locals: { message: @message },
+        attributes: { maintain_scroll: true }
+      )
     end
 
-    def broadcast_remove
-      @boost.broadcast_remove_to @boost.message.room, :messages
-    end
+    alias_method :broadcast_create, :broadcast_boosts
+    alias_method :broadcast_remove, :broadcast_boosts
 end

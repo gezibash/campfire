@@ -22,13 +22,28 @@ module Api
       def create
         room = @current_api_user.rooms.find(params[:room_id])
 
-        Current.user = @current_api_user
         message = room.messages.create!(body: params[:body])
         message.broadcast_create
 
         render json: message_json(message), status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message }, status: :unprocessable_entity
+      end
+
+      def destroy
+        room = @current_api_user.rooms.find(params[:room_id])
+        message = room.messages.find(params[:id])
+
+        unless @current_api_user.can_administer?(message)
+          render json: { error: "Not authorized" }, status: :forbidden
+          return
+        end
+
+        message.destroy
+        message.broadcast_remove
+        head :no_content
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: "Message not found" }, status: :not_found
       end
 
       private

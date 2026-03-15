@@ -2,7 +2,30 @@
   <div class="boosts flex flex-wrap align-center gap full-width" style="--column-gap: 0.4ch; --row-gap: 0"
       data-controller="turbo-streaming" data-action="turbo:submit-start->turbo-streaming#unsubscribe">
     <div class="flex-inline flex-wrap gap" id="<%= dom_id(message, :boosts) %>" data-turbo-streaming-target="container">
-      <%= render partial: "messages/boosts/boost", collection: message.boosts.ordered, cached: true %>
+      <% message.boosts.ordered.group_by(&:content).each do |emoji, boosts| %>
+        <% boosters = boosts.map(&:booster) %>
+        <% current_user_boost = boosts.find { |b| b.booster_id == Current.user.id } %>
+        <div class="boost-pill <%= 'boost-pill--mine' if current_user_boost %>"
+             title="<%= boosters.map(&:name).to_sentence %>">
+          <% if current_user_boost %>
+            <%= button_to message_boost_path(message, current_user_boost), method: :delete,
+                  class: "boost-pill__btn", data: { turbo_frame: dom_id(message, :boosting) } do %>
+              <span class="boost-pill__emoji"><%= emoji %></span>
+              <span class="boost-pill__count"><%= boosts.size %></span>
+            <% end %>
+          <% else %>
+            <%= form_with model: [ message, Boost.new ],
+                  data: { turbo_frame: dom_id(message, :boosting) },
+                  class: "boost-pill__form" do |form| %>
+              <%= hidden_field_tag "boost[content]", emoji %>
+              <button type="submit" class="boost-pill__btn">
+                <span class="boost-pill__emoji"><%= emoji %></span>
+                <span class="boost-pill__count"><%= boosts.size %></span>
+              </button>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
     </div>
 
     <%= turbo_frame_tag message, :new_boost do %>

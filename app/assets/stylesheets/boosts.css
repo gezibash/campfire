@@ -95,6 +95,55 @@
   animation: scale-fade-out 0.2s both;
 }
 
+/* Aggregated reaction pills */
+.boost-pill {
+  display: inline-flex;
+  margin-block-start: calc(var(--block-space-half) / 2);
+}
+
+.boost-pill__btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-border-dark);
+  border-radius: 4rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 0.9rem;
+  gap: 0.4em;
+  line-height: 1;
+  padding: 0.35em 0.65em 0.35em 0.5em;
+  transition: background 150ms, border-color 150ms, box-shadow 150ms;
+}
+
+.boost-pill__emoji {
+  font-size: 1.15em;
+}
+
+.boost-pill__count {
+  font-size: 0.85em;
+  font-weight: 600;
+  min-inline-size: 1ch;
+  text-align: center;
+}
+
+.boost-pill--mine .boost-pill__btn {
+  background: var(--color-selected, oklch(65% 0.15 250 / 0.15));
+  border-color: var(--color-selected-dark, oklch(65% 0.15 250 / 0.4));
+}
+
+@media (any-hover: hover) {
+  .boost-pill__btn:where(:not(:active)):hover {
+    border-color: var(--color-border-darker);
+    box-shadow: 0 0 0 var(--hover-size, 2px) var(--hover-color, oklch(50% 0 0 / 0.08));
+  }
+}
+
+.boost-pill__form {
+  display: inline;
+}
+
 /* Reactions */
 .quick-boosts {
   display: grid;

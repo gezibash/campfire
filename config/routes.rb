@@ -101,16 +101,21 @@ Rails.application.routes.draw do
     namespace :v1 do
       resource  :first_run, only: :create
       resource  :session,   only: :create
+      post      :join,      to: "joins#create"
       resources :users,     only: %i[ index create ] do
         resource :avatar, only: :show, controller: "avatars"
+        patch :presence, on: :member
       end
-      resources :rooms,     only: :index do
+      get "users/presence", to: "users#presence_index"
+      resources :rooms,     only: %i[ index show create update destroy ] do
         post :direct, on: :collection
-        resources :messages, only: %i[ index create ]
+        patch :involvement, on: :member, to: "involvements#update"
+        resources :messages, only: %i[ index create destroy ]
       end
       resources :messages,  only: [] do
-        resources :boosts,  only: :create
+        resources :boosts,  only: %i[ create destroy ]
       end
+      get :search, to: "searches#index"
     end
   end
 end
