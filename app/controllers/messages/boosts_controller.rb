@@ -21,7 +21,11 @@ class Messages::BoostsController < ApplicationController
     @boost.destroy!
 
     broadcast_remove
-    redirect_to message_boosts_url(@message)
+
+    respond_to do |format|
+      format.turbo_stream { head :ok }
+      format.html { redirect_to message_boosts_url(@message) }
+    end
   end
 
   private
