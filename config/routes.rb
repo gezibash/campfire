@@ -96,6 +96,8 @@ Rails.application.routes.draw do
 
   get "up" => "rails/health#show", as: :rails_health_check
 
+  get "cli/authorize", to: "cli_auth#authorize"
+
   # --- Swarm API ---
   namespace :api do
     namespace :v1 do

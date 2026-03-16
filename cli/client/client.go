@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -355,8 +356,16 @@ func (c *Client) Watch(onMessage func([]byte)) error {
 	q.Set("token", c.Token)
 	u.RawQuery = q.Encode()
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	header := http.Header{}
+	header.Set("Origin", c.BaseURL)
+	conn, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
+		if resp != nil {
+			return fmt.Errorf("connecting to WebSocket: %w (HTTP %d)", err, resp.StatusCode)
+		}
 		return fmt.Errorf("connecting to WebSocket: %w", err)
 	}
 	defer conn.Close()

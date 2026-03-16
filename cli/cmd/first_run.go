@@ -89,6 +89,6 @@ func runFirstRun(cmd *cobra.Command, args []string) {
 		fmt.Println(string(body))
 	} else {
 		fmt.Printf("Instance created! Logged in as %s (%s)\n", result.User.Name, result.User.Email)
-		fmt.Println("Config saved to ~/.config/campfire/config.toml")
+		fmt.Printf("Config saved to ~/.config/campfire/config.toml [profile: %s]\n", activeProfile())
 	}
 }

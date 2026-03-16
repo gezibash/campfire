@@ -2,9 +2,14 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	"golang.org/x/term"
@@ -43,6 +48,15 @@ func runLogin(cmd *cobra.Command, args []string) {
 	}
 	if url == "" {
 		exitWithError("URL is required", nil)
+	}
+	url = strings.TrimRight(url, "/")
+
+	// If no email/password provided and stdin is a terminal, try browser auth
+	if email == "" && password == "" && term.IsTerminal(int(os.Stdin.Fd())) {
+		if browserLogin(url) {
+			return
+		}
+		// Browser auth failed or was skipped — fall through to interactive prompts
 	}
 
 	if email == "" {
@@ -88,6 +102,81 @@ func runLogin(cmd *cobra.Command, args []string) {
 		fmt.Println(string(body))
 	} else {
 		fmt.Printf("Logged in as %s (%s)\n", result.User.Name, result.User.Email)
-		fmt.Println("Config saved to ~/.config/campfire/config.toml")
+		fmt.Printf("Config saved to ~/.config/campfire/config.toml [profile: %s]\n", activeProfile())
+	}
+}
+
+// browserLogin starts a local callback server, opens the browser to the Campfire
+// authorize endpoint, and waits for the redirect with the token.
+func browserLogin(baseURL string) bool {
+	// Start local server on a random port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return false
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	type callbackResult struct {
+		token  string
+		userID string
+		name   string
+	}
+	resultCh := make(chan callbackResult, 1)
+
+	srv := &http.Server{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		token := r.URL.Query().Get("token")
+		userID := r.URL.Query().Get("user_id")
+		name := r.URL.Query().Get("name")
+
+		if token == "" {
+			http.Error(w, "Missing token", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `<html><body><h2>Logged in as %s</h2><p>You can close this tab and return to the terminal.</p></body></html>`, name)
+
+		resultCh <- callbackResult{token: token, userID: userID, name: name}
+	})
+	srv.Handler = mux
+
+	go srv.Serve(listener)
+	defer srv.Shutdown(context.Background())
+
+	authorizeURL := fmt.Sprintf("%s/cli/authorize?port=%d", baseURL, port)
+	fmt.Printf("Opening browser to log in...\n")
+	fmt.Printf("If the browser doesn't open, visit: %s\n", authorizeURL)
+
+	openBrowser(authorizeURL)
+
+	// Wait for callback
+	result := <-resultCh
+
+	userID := 0
+	fmt.Sscanf(result.userID, "%d", &userID)
+
+	if err := saveConfig(baseURL, result.token, userID); err != nil {
+		exitWithError("saving config", err)
+	}
+
+	fmt.Printf("Logged in as %s\n", result.name)
+	fmt.Printf("Config saved to ~/.config/campfire/config.toml [profile: %s]\n", activeProfile())
+	return true
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	}
+	if cmd != nil {
+		cmd.Start()
 	}
 }

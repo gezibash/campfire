@@ -13,8 +13,9 @@ import (
 var (
 	jsonOutput     bool
 	markdownOutput bool
+	profileName    string
 	versionInfo    string
-	rootCmd     = &cobra.Command{
+	rootCmd        = &cobra.Command{
 		Use:   "campfire",
 		Short: "CLI for Campfire chat",
 		Long:  "Command-line interface for interacting with a Campfire instance.",
@@ -36,6 +37,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 	rootCmd.PersistentFlags().BoolVar(&markdownOutput, "markdown", false, "Output in GitHub-Flavored Markdown")
+	rootCmd.PersistentFlags().StringVar(&profileName, "profile", "", "Use a named profile (default: default)")
 }
 
 func configDir() string {
@@ -58,8 +60,31 @@ func initConfig() {
 	_ = viper.ReadInConfig()
 }
 
+// activeProfile returns the profile name to use: --profile flag > CAMPFIRE_PROFILE env > default_profile config > "default"
+func activeProfile() string {
+	if profileName != "" {
+		return profileName
+	}
+	if env := os.Getenv("CAMPFIRE_PROFILE"); env != "" {
+		return env
+	}
+	if dp := viper.GetString("default_profile"); dp != "" {
+		return dp
+	}
+	return "default"
+}
+
+// profileKey returns the viper key for a profile setting.
+func profileKey(key string) string {
+	return "profiles." + activeProfile() + "." + key
+}
+
 func getURL() string {
-	url := viper.GetString("url")
+	url := viper.GetString(profileKey("url"))
+	// Fall back to top-level for legacy config
+	if url == "" {
+		url = viper.GetString("url")
+	}
 	if url == "" {
 		fmt.Fprintln(os.Stderr, "Error: Campfire URL not configured.")
 		fmt.Fprintln(os.Stderr, "Run 'campfire login --url <URL>' or set CAMPFIRE_URL.")
@@ -69,13 +94,25 @@ func getURL() string {
 }
 
 func getToken() string {
-	token := viper.GetString("token")
+	token := viper.GetString(profileKey("token"))
+	// Fall back to top-level for legacy config
+	if token == "" {
+		token = viper.GetString("token")
+	}
 	if token == "" {
 		fmt.Fprintln(os.Stderr, "Error: Not authenticated.")
 		fmt.Fprintln(os.Stderr, "Run 'campfire login' or set CAMPFIRE_TOKEN.")
 		os.Exit(1)
 	}
 	return token
+}
+
+func getUserID() int {
+	id := viper.GetInt(profileKey("user_id"))
+	if id == 0 {
+		id = viper.GetInt("user_id")
+	}
+	return id
 }
 
 func newClient() *client.Client {
@@ -96,18 +133,21 @@ func exitWithError(msg string, err error) {
 	os.Exit(1)
 }
 
-func getUserID() int {
-	return viper.GetInt("user_id")
-}
-
 func saveConfig(url, token string, userID int) error {
 	dir := configDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
-	viper.Set("url", url)
-	viper.Set("token", token)
-	viper.Set("user_id", userID)
+	profile := activeProfile()
+	viper.Set("profiles."+profile+".url", url)
+	viper.Set("profiles."+profile+".token", token)
+	viper.Set("profiles."+profile+".user_id", userID)
+
+	// Set default_profile if not already set
+	if viper.GetString("default_profile") == "" {
+		viper.Set("default_profile", profile)
+	}
+
 	return viper.WriteConfigAs(dir + "/config.toml")
 }

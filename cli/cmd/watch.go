@@ -40,6 +40,7 @@ func runWatch(cmd *cobra.Command, args []string) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	seen := make(map[string]bool)
 
 	err := c.Watch(func(raw []byte) {
 		var event struct {
@@ -61,6 +62,13 @@ func runWatch(cmd *cobra.Command, args []string) {
 		if err := json.Unmarshal(raw, &event); err != nil {
 			return
 		}
+
+		// Deduplicate (server may deliver via multiple streams)
+		dedupKey := fmt.Sprintf("%s:%d", event.Event, event.Message.ID)
+		if seen[dedupKey] {
+			return
+		}
+		seen[dedupKey] = true
 
 		// Apply room filter
 		if roomFilter != "" && fmt.Sprintf("%d", event.Room.ID) != roomFilter {
