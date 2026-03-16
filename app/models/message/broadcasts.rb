@@ -13,8 +13,9 @@ module Message::Broadcasts
   private
     def broadcast_api_event(event)
       member_ids = room.memberships.pluck(:user_id)
+      mentionee_ids = event == :message_created ? mentionees.pluck(:id).to_set : Set.new
 
-      payload = {
+      base_payload = {
         event: event,
         message: {
           id: id,
@@ -28,17 +29,15 @@ module Message::Broadcasts
           id: room.id,
           name: room.name.presence || room.users.ordered.pluck(:name).join(", "),
           type: room.type,
-          direct: room.direct?,
-          member_ids: member_ids
+          direct: room.direct?
         }
       }
 
-      # Broadcast to each room member's personal API stream.
+      # Broadcast to each room member's personal API stream with per-user mentioned flag.
       member_ids.each do |uid|
+        payload = base_payload.deep_dup
+        payload[:mentioned] = mentionee_ids.include?(uid)
         ActionCable.server.broadcast("api:user:#{uid}", payload)
       end
-
-      # Broadcast to the global API stream so admin watchers see all messages.
-      ActionCable.server.broadcast("api:global", payload)
     end
 end

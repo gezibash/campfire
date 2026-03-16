@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+
+	"github.com/gorilla/websocket"
 )
 
 type Client struct {
@@ -331,4 +334,69 @@ func (c *Client) UpdateInvolvement(roomID, level string) ([]byte, error) {
 		return nil, err
 	}
 	return body, nil
+}
+
+// Watch opens a WebSocket connection to the ActionCable API channel and calls
+// onMessage for each received event. It blocks until the connection is closed
+// or an error occurs.
+func (c *Client) Watch(onMessage func([]byte)) error {
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return fmt.Errorf("parsing base URL: %w", err)
+	}
+
+	scheme := "ws"
+	if u.Scheme == "https" {
+		scheme = "wss"
+	}
+	u.Scheme = scheme
+	u.Path = "/cable"
+	q := u.Query()
+	q.Set("token", c.Token)
+	u.RawQuery = q.Encode()
+
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("connecting to WebSocket: %w", err)
+	}
+	defer conn.Close()
+
+	// Subscribe to the ApiChannel
+	subscribe := map[string]interface{}{
+		"command":    "subscribe",
+		"identifier": `{"channel":"ApiChannel"}`,
+	}
+	if err := conn.WriteJSON(subscribe); err != nil {
+		return fmt.Errorf("subscribing: %w", err)
+	}
+
+	for {
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("reading message: %w", err)
+		}
+
+		var frame struct {
+			Type       string          `json:"type"`
+			Message    json.RawMessage `json:"message"`
+			Identifier string          `json:"identifier"`
+		}
+		if err := json.Unmarshal(raw, &frame); err != nil {
+			continue
+		}
+
+		// Skip ActionCable internal frames (welcome, ping, confirm_subscription)
+		if frame.Type != "" {
+			continue
+		}
+
+		// Only deliver messages from our channel
+		if frame.Identifier != `{"channel":"ApiChannel"}` {
+			continue
+		}
+
+		if frame.Message != nil {
+			onMessage([]byte(frame.Message))
+		}
+	}
 }

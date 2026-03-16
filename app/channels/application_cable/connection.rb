@@ -21,8 +21,7 @@ module ApplicationCable
 
       def find_by_api_token
         if token = request.params[:token].presence
-          user_id, bot_token = token.split("-", 2)
-          User.active.find_by(id: user_id, bot_token: bot_token)
+          User.active.find_by(api_token: token)
         end
       end
   end

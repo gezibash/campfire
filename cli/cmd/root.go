@@ -96,7 +96,11 @@ func exitWithError(msg string, err error) {
 	os.Exit(1)
 }
 
-func saveConfig(url, token string) error {
+func getUserID() int {
+	return viper.GetInt("user_id")
+}
+
+func saveConfig(url, token string, userID int) error {
 	dir := configDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -104,5 +108,6 @@ func saveConfig(url, token string) error {
 
 	viper.Set("url", url)
 	viper.Set("token", token)
+	viper.Set("user_id", userID)
 	return viper.WriteConfigAs(dir + "/config.toml")
 }

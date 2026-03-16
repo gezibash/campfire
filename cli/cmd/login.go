@@ -80,7 +80,7 @@ func runLogin(cmd *cobra.Command, args []string) {
 		exitWithError("parsing response", err)
 	}
 
-	if err := saveConfig(url, result.APIToken); err != nil {
+	if err := saveConfig(url, result.APIToken, result.User.ID); err != nil {
 		exitWithError("saving config", err)
 	}
 

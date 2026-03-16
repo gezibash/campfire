@@ -86,7 +86,7 @@ func runJoin(cmd *cobra.Command, args []string) {
 		exitWithError("parsing response", err)
 	}
 
-	if err := saveConfig(baseURL, result.APIToken); err != nil {
+	if err := saveConfig(baseURL, result.APIToken, result.User.ID); err != nil {
 		exitWithError("saving config", err)
 	}
 
